@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grimório do Mestre | API RPG</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #c0392b; /* Vermelho Sangue */
+            --accent: #f1c40f; /* Dourado */
+            --bg: #121212;
+            --card: #1e1e1e;
+            --text: #ecf0f1;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: radial-gradient(circle at center, #2c3e50 0%, #000000 100%);
+            font-family: 'Lato', sans-serif;
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* Partículas de Fundo (Simples) */
+        .bg-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url("https://www.transparenttextures.com/patterns/stardust.png");
+            opacity: 0.3;
+            z-index: -1;
+            animation: pulse 10s infinite alternate;
+        }
+
+        .container {
+            text-align: center;
+            background: rgba(30, 30, 30, 0.9);
+            padding: 3rem;
+            border-radius: 15px;
+            border: 2px solid var(--primary);
+            box-shadow: 0 0 30px rgba(192, 57, 43, 0.3);
+            max-width: 600px;
+            width: 90%;
+            animation: slideUp 0.8s ease-out;
+            position: relative;
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            font-size: 2.5rem;
+            color: var(--accent);
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+
+        p { margin-bottom: 1.5rem; font-size: 1.1rem; color: #bdc3c7; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 50px;
+            background: rgba(46, 204, 113, 0.2);
+            color: #2ecc71;
+            font-weight: bold;
+            font-size: 0.9rem;
+            border: 1px solid #2ecc71;
+            margin-bottom: 2rem;
+        }
+
+        .links {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            font-size: 0.9rem;
+            background: #000;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: left;
+            font-family: 'Courier New', monospace;
+            border-left: 4px solid var(--accent);
+        }
+
+        .code { color: var(--accent); }
+
+        /* Estilo para ERRO */
+        .error-box {
+            background: rgba(192, 57, 43, 0.1);
+            border: 1px solid var(--primary);
+            color: #e74c3c;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none; /* Escondido por padrão */
+        }
+
+        /* Animações */
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulse {
+            from { opacity: 0.1; }
+            to { opacity: 0.4; }
+        }
+
+        footer {
+            margin-top: 20px;
+            font-size: 0.8rem;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-overlay"></div>
+
+    <div class="container">
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#f1c40f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+
+        <h1>Grimório da API</h1>
+        
+        <div class="status-badge">● Sistema Operacional</div>
+
+        <p>O Motor de Geração de Fichas está ativo e aguardando comandos do Bot.</p>
+
+        <div class="links">
+            <span>Exemplos de Rotas:</span>
+            <span class="code">GET /ficha/t20?nome=Valeros</span>
+            <span class="code">GET /ficha/dnd5e?nome=Aragorn</span>
+        </div>
+
+        {% if erro %}
+        <div class="error-box" style="display: block;">
+            <strong>⚠️ Falha Crítica:</strong><br>
+            {{ erro }}
+        </div>
+        {% endif %}
+
+        <footer>Desenvolvido para o Grupo Nuveto</footer>
+    </div>
+</body>
+</html>
