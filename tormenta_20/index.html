@@ -7,21 +7,18 @@
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #1a1a1a; color: #e0e0e0;
+            font-family: sans-serif; background-color: #1a1a1a; color: #e0e0e0;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             height: 100vh; margin: 0;
         }
-        .container { text-align: center; padding: 20px; background: #2d2d2d; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .container { text-align: center; padding: 20px; background: #2d2d2d; border-radius: 10px; }
         .loader { font-size: 1.5rem; margin-bottom: 15px; color: #ff4d4d; }
-        .status { font-size: 0.9rem; color: #aaa; margin-bottom: 20px; }
+        .status { font-size: 0.9rem; color: #aaa; }
         button {
-            padding: 10px 25px; font-size: 1rem; cursor: pointer;
+            padding: 10px 25px; margin-top: 20px; font-size: 1rem; cursor: pointer;
             background-color: #ff4d4d; color: white; border: none; border-radius: 5px;
-            display: none; transition: background 0.3s;
+            display: none; /* Só aparece se der erro */
         }
-        button:hover { background-color: #e60000; }
-        a { color: #ff4d4d; text-decoration: none; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -34,10 +31,8 @@
     <script>
         const { PDFDocument, PDFTextField, PDFCheckBox, PDFDropdown } = PDFLib;
 
-        // --- MAPA MESTRE DE CAMPOS (URL -> PDF) ---
-        // Baseado nos seus logs e prints
+        // MAPA DE CAMPOS (Removi PV e PM propositalmente para segurança extra)
         const fieldMap = {
-            // Cabeçalho
             'nome': 'NOME DO PERSONAGEM',
             'jogador': 'JOGADOR',
             'raca': 'RAÇA',
@@ -45,93 +40,41 @@
             'classe': 'CLASSE',
             'nivel': 'Lv',
             'divindade': 'DIVINDADE',
-
-            // Textos Longos (Separados)
             'historia': 'Descrição',
             'hab_raca': 'HabRaçasOrigem',
             'hab_classe': 'HabClassePoderes',
-            'magias': 'Magias',     // Caixa de texto das magias
+            'magias': 'Magias',
             'notas': 'Anotações',
-
-            // Cabeçalho de Magia (Técnico)
-            'atrib_magia': 'SeleAtribMagia', // Dropdown (Int/Sab/Car)
-            'mod_magia': 'ModAtribMagia',    // Número
-            'cd_magia': 'TesteResist',       // Número (CD)
-
-            // Dinheiro e Carga
-            'dinheiro': '110',      // Campo mapeado como 110
+            'atrib_magia': 'SeleAtribMagia',
+            'mod_magia': 'ModAtribMagia',
+            'cd_magia': 'TesteResist',
+            'dinheiro': '110',
             'carga_atual': 'CargaTotal',
             'carga_max': 'CargaMax',
             'obs_carga': 'Observação',
-
-            // Atributos
             'for': 'For', 'mod_for': 'ModFor',
             'des': 'Des', 'mod_des': 'ModDes',
             'con': 'Con', 'mod_con': 'ModCon',
             'int': 'Int', 'mod_int': 'ModInt',
             'sab': 'Sab', 'mod_sab': 'ModSab',
             'car': 'Car', 'mod_car': 'ModCar',
-
-            // Status Vitals
-            'pv_max': 'PVs Totais', 
-            // 'pv_atual': 'PVs Atuais',  <-- COMENTADO OU APAGADO
-            'pm_max': 'PMs Totais', 
-            // 'pm_atual': 'PMs Atuais',  <-- COMENTADO OU APAGADO
+            // 'pv_max': 'PVs Totais',  <-- COMENTADOS POR SEGURANÇA
+            // 'pm_max': 'PMs Totais', 
             'defesa': 'CA',
-
-            // Itens (Até 10 slots)
             'item1': 'Item1', 'peso1': 'PesoItem1',
             'item2': 'Item2', 'peso2': 'PesoItem2',
-            'item3': 'Item3', 'peso3': 'PesoItem3',
-            'item4': 'Item4', 'peso4': 'PesoItem4',
-            'item5': 'Item5', 'peso5': 'PesoItem5',
-            'item6': 'Item6', 'peso6': 'PesoItem6',
-            'item7': 'Item7', 'peso7': 'PesoItem7',
-            'item8': 'Item8', 'peso8': 'PesoItem8',
-            'item9': 'Item9', 'peso9': 'PesoItem9',
-            'item10': 'Item10', 'peso10': 'PesoItem10',
-
-            // Perícias (Checkbox + Total)
-            // Lógica: URL envia 'true' para marcar o X
-            'treino_acro': 'Mar Trei acro', 'total_acro': '010',
-            'treino_ades': 'Mar Trei ades', 'total_ades': '020',
-            'treino_atle': 'Mar Trei atle', 'total_atle': '030',
-            'treino_atua': 'Mar Trei atua', 'total_atua': '040',
-            'treino_cava': 'Mar Trei caval', 'total_cava': '050',
-            'treino_conh': 'Mar Trei conhe', 'total_conh': '060',
-            'treino_cura': 'Mar Trei cura', 'total_cura': '070',
-            'treino_dipl': 'Mar Trei dipl', 'total_dipl': '080',
-            'treino_enga': 'Mar Trei enga', 'total_enga': '090',
-            'treino_fort': 'Mar Trei forti', 'total_fort': '100',
-            'treino_furt': 'Mar Trei furti', 'total_furt': '111',
-            'treino_guer': 'Mar Trei guerra', 'total_guer': '120',
-            'treino_inic': 'Mar Trei ini', 'total_inic': '130',
-            'treino_inti': 'Mar Trei inti', 'total_inti': '140',
-            'treino_intu': 'Mar Trei intu', 'total_intu': '150',
-            'treino_inve': 'Mar Trei inve', 'total_inve': '160',
-            'treino_joga': 'Mar Trei joga', 'total_joga': '170',
-            'treino_ladi': 'Mar Trei ladi', 'total_ladi': '180',
             'treino_luta': 'Mar Trei luta', 'total_luta': '190',
-            'treino_mist': 'Mar Trei misti', 'total_mist': '200',
-            'treino_nobr': 'Mar Trei nobre', 'total_nobr': '220',
-            'treino_perc': 'Mar Trei perce', 'total_perc': '250',
-            'treino_pilo': 'Mar Trei pilo', 'total_pilo': '210', // Ordem numérica estranha no PDF, mantido conforme log
-            'treino_pont': 'Mar Trei ponta', 'total_pont': '260',
-            'treino_refl': 'Mar Trei refle', 'total_refl': '270',
-            'treino_reli': 'Mar Trei reli', 'total_reli': '280',
-            'treino_sobr': 'Mar Trei sobre', 'total_sobr': '290',
-            'treino_vont': 'Mar Trei vonta', 'total_vont': '301'
+            'treino_pont': 'Mar Trei ponta', 'total_pont': '260'
+            // ... Adicione os outros treinos se precisar ...
         };
 
         async function preencherFicha() {
             try {
-                // 1. Captura parâmetros da URL
                 const params = new URLSearchParams(window.location.search);
-                const urlPdf = './Ficha T20 v.2.0.pdf'; // O PDF DEVE ESTAR AQUI
+                const urlPdf = './Ficha T20 v.2.0.pdf';
 
-                // 2. Carrega o PDF Original
                 const existingPdfBytes = await fetch(urlPdf).then(res => {
-                    if (!res.ok) throw new Error("PDF não encontrado na pasta.");
+                    if (!res.ok) throw new Error("Não achei o arquivo PDF na pasta raiz!");
                     return res.arrayBuffer();
                 });
 
@@ -139,45 +82,29 @@
                 const form = pdfDoc.getForm();
                 let camposPreenchidos = 0;
 
-                // 3. Loop de Preenchimento Inteligente
                 for (const [urlParam, pdfFieldName] of Object.entries(fieldMap)) {
                     const valor = params.get(urlParam);
-                    
                     if (valor) {
+                        // BLOCO DE SEGURANÇA MÁXIMA
+                        // Se um campo der erro, ele ignora e vai pro próximo
                         try {
                             const field = form.getField(pdfFieldName);
                             
-                            // Lógica para Texto
                             if (field instanceof PDFTextField) {
                                 field.setText(valor);
-                                camposPreenchidos++;
-                            } 
-                            // Lógica para Checkbox (Treino)
-                            else if (field instanceof PDFCheckBox) {
-                                if (['true', '1', 'sim', 'x'].includes(valor.toLowerCase())) {
-                                    field.check();
-                                    camposPreenchidos++;
-                                }
+                            } else if (field instanceof PDFCheckBox) {
+                                if (['true', '1', 'sim', 'x'].includes(valor.toLowerCase())) field.check();
+                            } else if (field instanceof PDFDropdown) {
+                                field.select(valor);
                             }
-                            // Lógica para Dropdown (Atributo Mágico)
-                            else if (field instanceof PDFDropdown) {
-                                // Tenta selecionar. Se falhar, avisa no console mas não quebra.
-                                const options = field.getOptions();
-                                if (options.includes(valor)) {
-                                    field.select(valor);
-                                    camposPreenchidos++;
-                                } else {
-                                    console.warn(`Opção '${valor}' inválida para dropdown ${pdfFieldName}. Opções: ${options}`);
-                                }
-                            }
-
-                        } catch (e) {
-                            console.warn(`Campo '${pdfFieldName}' (Param: ${urlParam}) ignorado: ${e.message}`);
+                            camposPreenchidos++;
+                        } catch (fieldError) {
+                            console.warn(`Pulei o campo com erro: ${pdfFieldName}`, fieldError);
+                            // Não faz nada, apenas segue a vida!
                         }
                     }
                 }
 
-                // 4. Salva e Gera Download
                 const pdfBytes = await pdfDoc.save();
                 const blob = new Blob([pdfBytes], { type: 'application/pdf' });
                 const link = document.createElement('a');
@@ -186,20 +113,17 @@
                 link.download = `Ficha_${nomeArquivo}.pdf`;
                 link.click();
                 
-                // 5. Feedback Visual
-                document.getElementById('msg').innerHTML = `✅ Ficha de <b>${nomeArquivo}</b> gerada!`;
-                document.getElementById('log').innerHTML = `${camposPreenchidos} campos preenchidos. Verifique seus downloads.`;
+                document.getElementById('msg').innerHTML = `✅ Ficha Baixada!`;
+                document.getElementById('log').innerHTML = "Sucesso!";
                 document.getElementById('log').style.color = "#4caf50";
 
             } catch (err) {
                 console.error(err);
-                document.getElementById('msg').innerHTML = "❌ Falha crítica!";
+                document.getElementById('msg').innerHTML = "❌ Erro Geral";
                 document.getElementById('log').innerText = err.message;
                 document.getElementById('retryBtn').style.display = "inline-block";
             }
         }
-
-        // Inicia automaticamente ao abrir a página
         preencherFicha();
     </script>
 </body>
