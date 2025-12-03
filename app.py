@@ -5,6 +5,7 @@ import io
 import json
 import os
 
+# Configuração de Caminhos
 base_dir = os.path.abspath(os.path.dirname(__file__))
 template_dir = os.path.join(base_dir, 'templates')
 
@@ -17,6 +18,7 @@ def home():
 @app.route('/ficha/<sistema>', methods=['GET'])
 def gerar_ficha_generica(sistema):
     try:
+        # 1. Validação de Arquivos
         pdf_path = os.path.join(base_dir, f"{sistema}.pdf")
         json_path = os.path.join(base_dir, f"{sistema}.json")
 
@@ -28,31 +30,53 @@ def gerar_ficha_generica(sistema):
 
         reader = PdfReader(pdf_path)
         writer = PdfWriter()
-
-        # 1. CLONAGEM TOTAL (Traz Scripts e Estrutura)
+        
+        # 2. Copia as Páginas (Base Visual)
+        # Isso garante que a estrutura de páginas do Writer fique correta
         writer.append_pages_from_reader(reader)
-        writer.clone_reader_document_root(reader)
 
-        # 2. HACK DE PERMISSÕES (O Segredo para reativar os cálculos)
-        # Remove a assinatura digital/travas que bloqueiam scripts após edição
-        try:
-            if hasattr(writer, 'root_object') and "/Perms" in writer.root_object:
-                del writer.root_object["/Perms"]
-            elif hasattr(writer, '_root_object') and "/Perms" in writer._root_object:
-                del writer._root_object["/Perms"]
-        except Exception as e:
-            print(f"Aviso: Não foi possível remover /Perms: {e}")
+        # 3. TRANSPLANTE DE "ÓRGÃOS VITAIS" (Sem quebrar a estrutura)
+        # Tenta localizar a Raiz do PDF original de forma segura
+        reader_root = None
+        if hasattr(reader, 'root_object'):
+            reader_root = reader.root_object
+        elif hasattr(reader, 'trailer'):
+            reader_root = reader.trailer['/Root']
 
-        # 3. Carrega e Aplica Dados
+        if reader_root:
+            # Pega a Raiz do Novo PDF para injetar os órgãos
+            # Tenta acessar _root_object (interno) ou root_object (novo)
+            writer_root = getattr(writer, 'root_object', None) or getattr(writer, '_root_object', None)
+
+            if writer_root:
+                # A. Copia o Formulário (/AcroForm) - Campos
+                if "/AcroForm" in reader_root:
+                    writer_root[NameObject("/AcroForm")] = reader_root["/AcroForm"]
+
+                # B. Copia os Scripts (/Names) - Onde vive o JavaScript
+                if "/Names" in reader_root:
+                    writer_root[NameObject("/Names")] = reader_root["/Names"]
+
+                # C. Copia Ações de Abertura (/OpenAction) - Scripts de inicialização
+                if "/OpenAction" in reader_root:
+                    writer_root[NameObject("/OpenAction")] = reader_root["/OpenAction"]
+
+                # D. Hack de Permissões:
+                # Nós propositalmente NÃO copiamos a chave "/Perms". 
+                # Ao deixar ela de fora, removemos a trava de segurança!
+        
+        # 4. Carrega Mapeamento
         with open(json_path, 'r', encoding='utf-8') as f:
             fields_map = json.load(f)
 
         data = request.args
         form_data = {}
 
+        # 5. Processa Dados da URL
         for url_param, pdf_field in fields_map.items():
             if url_param in data:
                 valor = data[url_param]
+                
                 # Checkbox
                 if "Mar Trei" in pdf_field:
                     if valor.lower() in ['true', '1', 'sim', 'yes', 'on']:
@@ -62,20 +86,21 @@ def gerar_ficha_generica(sistema):
                 else:
                     form_data[pdf_field] = valor
 
+        # 6. Preenche os Campos
         for page in writer.pages:
             writer.update_page_form_field_values(page, form_data)
 
-        # 4. FORÇA REATIVAR SCRIPTS VISUAIS
-        # Isso diz ao PDF Reader: "Execute os scripts de formatação agora"
+        # 7. Força Recálculo Visual (NeedAppearances)
         try:
-            root = writer.root_object if hasattr(writer, 'root_object') else writer._root_object
-            if "/AcroForm" in root:
-                root["/AcroForm"].update({
+            writer_root = getattr(writer, 'root_object', None) or getattr(writer, '_root_object', None)
+            if writer_root and "/AcroForm" in writer_root:
+                writer_root["/AcroForm"].update({
                     NameObject("/NeedAppearances"): BooleanObject(True)
                 })
         except:
             pass
 
+        # 8. Envia
         output_stream = io.BytesIO()
         writer.write(output_stream)
         output_stream.seek(0)
