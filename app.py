@@ -10,48 +10,79 @@ app = Flask(__name__, template_folder='templates')
 
 @app.route('/')
 def home():
-    # Renderiza a página bonita
     return render_template('index.html')
 
 @app.route('/ficha/<sistema>', methods=['GET'])
 def gerar_ficha_generica(sistema):
     try:
+        # Definição de caminhos
         pdf_path = f"{sistema}.pdf"
         json_path = f"{sistema}.json"
 
-        # ERRO BONITO: Se não achar o arquivo, renderiza a Home com msg de erro
+        # Verificações de arquivo
         if not os.path.exists(pdf_path):
-            return render_template('index.html', erro=f"Sistema '{sistema}' não encontrado. Falta o arquivo {pdf_path}."), 404
+            return render_template('index.html', erro=f"Sistema '{sistema}' não encontrado. PDF ausente."), 404
         
         if not os.path.exists(json_path):
-            return render_template('index.html', erro=f"Mapa '{json_path}' não encontrado."), 404
+            return render_template('index.html', erro=f"Mapa JSON '{sistema}' não encontrado."), 404
 
-        # ... (O CÓDIGO DO PYPDF CONTINUA IGUAL AQUI PARA BAIXO) ...
+        # Carrega o PDF
         reader = PdfReader(pdf_path)
         writer = PdfWriter()
         writer.append_pages_from_reader(reader)
 
-        if "/AcroForm" in reader.root_object:
-            writer.root_object[NameObject("/AcroForm")] = reader.root_object["/AcroForm"]
+        # --- CORREÇÃO DE COMPATIBILIDADE (O PULO DO GATO) ---
+        # Tenta pegar o Catálogo (Root) de forma universal
+        catalog = None
+        try:
+            # Tentativa 1: Método moderno
+            if hasattr(reader, 'root_object'):
+                catalog = reader.root_object
+            # Tentativa 2: Método clássico (acesso direto ao trailer)
+            elif hasattr(reader, 'trailer'):
+                catalog = reader.trailer['/Root']
+        except Exception as e:
+            print(f"Aviso: Falha ao ler root do original: {e}")
 
+        # Se conseguiu ler o catálogo original e ele tem formulário, copia para o novo
+        if catalog and "/AcroForm" in catalog:
+            # Garante acesso ao root do Writer também
+            if hasattr(writer, 'root_object'):
+                writer.root_object[NameObject("/AcroForm")] = catalog["/AcroForm"]
+            else:
+                # Fallback para versões internas/antigas
+                writer._root_object[NameObject("/AcroForm")] = catalog["/AcroForm"]
+        # -----------------------------------------------------
+
+        # Carrega o mapa JSON
         with open(json_path, 'r', encoding='utf-8') as f:
             fields_map = json.load(f)
 
         data = request.args
         form_data = {}
 
+        # Mapeia URL -> PDF
         for url_param, pdf_field in fields_map.items():
             if url_param in data:
                 form_data[pdf_field] = data[url_param]
 
+        # Aplica os dados
         for page in writer.pages:
             writer.update_page_form_field_values(page, form_data)
 
-        if "/AcroForm" in writer.root_object:
-            writer.root_object["/AcroForm"].update({
-                NameObject("/NeedAppearances"): BooleanObject(True)
-            })
+        # Força a atualização visual (NeedAppearances)
+        # Usa a mesma lógica blindada para pegar o root do writer
+        try:
+            writer_root = writer.root_object if hasattr(writer, 'root_object') else writer._root_object
+            
+            if "/AcroForm" in writer_root:
+                writer_root["/AcroForm"].update({
+                    NameObject("/NeedAppearances"): BooleanObject(True)
+                })
+        except Exception as e:
+            print(f"Aviso: Não foi possível atualizar NeedAppearances: {e}")
 
+        # Salva e Envia
         output_stream = io.BytesIO()
         writer.write(output_stream)
         output_stream.seek(0)
@@ -65,8 +96,8 @@ def gerar_ficha_generica(sistema):
         )
 
     except Exception as e:
-        # ERRO BONITO: Se der pau no código, mostra na tela estilizada
-        return render_template('index.html', erro=f"Erro Arcano: {str(e)}"), 500
+        # Mostra o erro detalhado na tela bonita
+        return render_template('index.html', erro=f"Erro Arcano (Motor): {str(e)}"), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
