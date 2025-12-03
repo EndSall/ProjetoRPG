@@ -5,7 +5,7 @@ import io
 import json
 import os
 
-# Configuração de Caminhos
+# Configuração de Caminhos para evitar erros de pasta
 base_dir = os.path.abspath(os.path.dirname(__file__))
 template_dir = os.path.join(base_dir, 'templates')
 
@@ -31,12 +31,12 @@ def gerar_ficha_generica(sistema):
         reader = PdfReader(pdf_path)
         writer = PdfWriter()
         
-        # 2. Copia as Páginas (Base Visual)
-        # Isso garante que a estrutura de páginas do Writer fique correta
+        # 2. Copia as Páginas (Visual)
+        # Isso garante que a estrutura visual do arquivo esteja correta
         writer.append_pages_from_reader(reader)
 
-        # 3. TRANSPLANTE DE "ÓRGÃOS VITAIS" (Sem quebrar a estrutura)
-        # Tenta localizar a Raiz do PDF original de forma segura
+        # 3. TRANSPLANTE DE "ÓRGÃOS VITAIS" (Scripts e Formulários)
+        # Tenta localizar a Raiz do PDF original de forma segura (Universal)
         reader_root = None
         if hasattr(reader, 'root_object'):
             reader_root = reader.root_object
@@ -45,7 +45,7 @@ def gerar_ficha_generica(sistema):
 
         if reader_root:
             # Pega a Raiz do Novo PDF para injetar os órgãos
-            # Tenta acessar _root_object (interno) ou root_object (novo)
+            # Tenta acessar _root_object (interno) ou root_object (novo) de forma segura
             writer_root = getattr(writer, 'root_object', None) or getattr(writer, '_root_object', None)
 
             if writer_root:
@@ -53,17 +53,13 @@ def gerar_ficha_generica(sistema):
                 if "/AcroForm" in reader_root:
                     writer_root[NameObject("/AcroForm")] = reader_root["/AcroForm"]
 
-                # B. Copia os Scripts (/Names) - Onde vive o JavaScript
+                # B. Copia os Scripts JavaScript Globais (/Names)
                 if "/Names" in reader_root:
                     writer_root[NameObject("/Names")] = reader_root["/Names"]
 
-                # C. Copia Ações de Abertura (/OpenAction) - Scripts de inicialização
+                # C. Copia Ações de Abertura (/OpenAction)
                 if "/OpenAction" in reader_root:
                     writer_root[NameObject("/OpenAction")] = reader_root["/OpenAction"]
-
-                # D. Hack de Permissões:
-                # Nós propositalmente NÃO copiamos a chave "/Perms". 
-                # Ao deixar ela de fora, removemos a trava de segurança!
         
         # 4. Carrega Mapeamento
         with open(json_path, 'r', encoding='utf-8') as f:
@@ -77,7 +73,7 @@ def gerar_ficha_generica(sistema):
             if url_param in data:
                 valor = data[url_param]
                 
-                # Checkbox
+                # Tratamento Especial para Checkbox
                 if "Mar Trei" in pdf_field:
                     if valor.lower() in ['true', '1', 'sim', 'yes', 'on']:
                         form_data[pdf_field] = BooleanObject(True)
@@ -86,7 +82,7 @@ def gerar_ficha_generica(sistema):
                 else:
                     form_data[pdf_field] = valor
 
-        # 6. Preenche os Campos
+        # 6. Preenche os Campos nas Páginas
         for page in writer.pages:
             writer.update_page_form_field_values(page, form_data)
 
@@ -100,7 +96,7 @@ def gerar_ficha_generica(sistema):
         except:
             pass
 
-        # 8. Envia
+        # 8. Salva e Envia
         output_stream = io.BytesIO()
         writer.write(output_stream)
         output_stream.seek(0)
